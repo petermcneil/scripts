@@ -1,40 +1,27 @@
 #!/usr/bin/env python
 import subprocess
 import os
+import time
 from os.path import expanduser
 
 #Utility constant
 home = expanduser("~")
 
 #Proxy dependent constants
-proxy_name = "{} Network"
+proxy_name = "BBC {} Network"
 on  = "On"
 off = "Off"
 reload_command = "source ~/.profile"
 
 #Dictionary of files to change
 files= {
-	'spotify' : {
-		'location' : '{}/Library/Application Support/Spotify/prefs'.format(home),
-		'on'  : 'network.proxy.mode=2',
-		'off' : 'network.proxy.mode=1'
-	},
-
-	'maven' : {
-		'location' : '{}/.m2/settings.xml'.format(home),
-		'on'  : '\t\t\t<active>true</active>\n',
-		'off' : '\t\t\t<active>false</active>\n'
-	},
-
-	'ssh' : {
-		'location' : '{}/.ssh/config'.format(home),
-		'on'  : 'ProxyCommand',
-		'off' : '#ProxyCommand'
-	}
+	'spotify' : '{}/Library/Application Support/Spotify/prefs'.format(home),
+	'maven' : '{}/.m2/settings.xml'.format(home),
+	'ssh' : '{}/.ssh/config'.format(home)	
 }
 
 #List of programs to reload on proxy change
-reload_process=["Spotify"]
+processes=["Spotify"]
 
 #AppleScript to reload profile in iTerm2
 reload_iterm2 = """tell application "iTerm"
@@ -55,7 +42,12 @@ end tell""".format(reload_command)
 
 #AppleScript to reload profile in the Mac Terminal
 reload_mac_term = """tell application "Terminal" 
-	do script "{}"
+	local allWindows
+	set allWindows to id of every window
+
+	repeat with windowID in allWindows
+		do shell script "{}"
+	end repeat
 end tell""".format(reload_command)
 
 #Dictionary of all terminals to reload on proxy change
@@ -102,58 +94,59 @@ def change_proxy():
 
 	after_reith = get_location()
 
-	proxy['after'] 		= after_reith[0]
-	proxy['after_text'] = after_reith[1]
-
-	message = "{red}{ul}Proxy is {bold}{yellow}{}{reset}".format(proxy['after_text'].upper(), **style)
+	message = "{red}{ul}Proxy is {bold}{}{reset}".format(get_location()[0], **style)
 	print(message)
 
 
 def update_file(process):
-	before = proxy['before_text']
-	after  = proxy['after_text']
-
-	location = files[process]['location']
-
-	old_text = files[process][before.lower().strip()]
-	new_text = files[process][after.lower().strip()]
+	location = files[process]
+	new_location = files[process] + ".old"
+	temp_location = files[process] + ".temp"
 
 	print("{bold}Changing the proxy settings for {}{reset}".format(process.title(), **style))
-	print("{red}Before text: {}\n{green}After text: {}{reset}\n".format(old_text.strip(), new_text.strip(), **style))
 
-	with open(location,'r') as f:
-		newlines = []
-		for line in f.readlines():
-			newlines.append(line.replace(old_text, new_text))
+	#print("{green}Moving {} to {}".format(new_location, temp_location, **style))
+	os.rename(new_location, temp_location)
+	#print("Moving {} to {}".format(location, new_location, **style))
+	os.rename(location, new_location)
+	#print("Moving {} to {}{reset}".format(temp_location, location, **style))
+	os.rename(temp_location, location)
+		
 
-	with open(location, 'w') as f:
-		for line in newlines:
-			f.write(line)
 
 def reload():
 	for terminal in terminals:
 		reload_terminal(terminal)
 
-	for process in reload_process:
-		print("{yellow}Reloading the process {bold}{}{reset}".format(process, **style))
-		process_bash = "pgrep -x \"{}\"".format(process)
-		pid = subprocess.Popen(process_bash, stdout=subprocess.PIPE, shell=True).communicate()[0].decode()
+	map(reload_process, processes)
 
+def reload_process(process):
+	pid = find_pid(process)
+
+	if pid:
+		print("{yellow}Reloading the process {bold}{}{reset}{yellow} at pid {bold}{}{reset}".format(process, pid, **style))
 		subprocess.Popen("kill {}".format(pid), shell=True).communicate()
 		subprocess.Popen("open -g -a {}".format(process), shell=True).communicate()
 
 # Checks whether a terminal is running and then reloads if thats the case
 def reload_terminal(terminal):
-	grep = "grep {}".format(terminal)
-	process_bash = '''ps -A | {}'''.format(grep)
-	pid = subprocess.Popen(process_bash, stdout=subprocess.PIPE, shell=True).communicate()[0]
+	pid = find_pid(terminal)
 
-	for line in pid.splitlines():
+	if pid:
+		print("{yellow}Reloading the terminal {bold}{}{reset}".format(terminal, **style))
+		command = "osascript -e '{}'".format(terminals[terminal])
+		bin_it  = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True).communicate()
+
+def find_pid(process):
+	grep = "grep -w {}".format(process)
+	process_bash = '''ps -A | {}'''.format(grep)
+	output = subprocess.Popen(process_bash, stdout=subprocess.PIPE, shell=True).communicate()[0]
+
+	for line in output.splitlines():
 		if grep not in line:
-			print("{yellow}Reloading the terminal {bold}{}{reset}".format(terminal, **style))
-			command = "osascript -e '{}'".format(terminals[terminal])
-			bin_it  = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True).communicate()
-			break
+			return line[:5]
+
+	return False
 
 def main():
 	before_proxy = get_location()

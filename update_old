@@ -1,0 +1,140 @@
+#!/bin/bash
+FILES=($(ls -d */))
+parent_dir=$(pwd)
+
+#Terminal colours
+cyan="\\e[36m"
+green="\\e[92m"
+red="\\e[91m"
+purple="\\e[95m"
+yellow="\\e[33m"
+blue="\\e[34m"
+
+bold="\\e[01m"
+ul="\\e[4m"
+blink="\\e[5m"
+invert="\\e[7m"
+reset="\\e[0m"
+
+#Flags
+gradle=false
+maven=false
+changeBack=true
+forceUpdate=false
+stayOnBranch=false
+
+#Array of projects to avoid with integration
+avoid=("datasys-ares-commons/", "datasys-commons/", "datasys-ares-acceptance-tests/", "venv/")
+
+#Options passed to script
+while getopts 'gmcfs' flag; do
+  case "${flag}" in
+    g) gradle=true ;;
+    m) maven=true ;;
+	c) changeBack=false ;;
+	f) forceUpdate=true ;;
+	s) stayOnBranch=true ;;
+    *) error "Unexpected option ${flag}" ;;
+  esac
+done
+
+run_gradle() {
+	if "${gradle}" == true;
+		then
+		if [[ " ${avoid[@]} " =~ " ${folder} " ]];
+			then
+				printf "Applying ${green}Gradle${reset} clean build ${red}without unit test${reset} to ${cyan}${folder}${reset}\n"
+				./gradlew clean build -x test 
+			else
+				printf "Applying ${green}Gradle${reset} clean build ${red}without unit and ${bold}feature tests${reset} to ${cyan}${folder}${reset}\n"
+				./gradlew clean build -x test -x integration
+		fi
+	fi
+}
+
+run_maven() {
+	if "${maven}" == true;
+		then
+		if [[ " ${avoid[@]} " =~ " ${i} " ]];
+			then
+				printf "${cyan}${folder}${red} does not contain a maven project.\n"
+			else
+				printf "Applying ${green}maven${reset} build to ${cyan}${folder}${reset}\n"
+				mvn -U clean install -DskipTests
+		fi
+	fi
+}
+
+brancher() {
+	printf "${bold}${blue}Current branch: ${reset}${bold}$1${reset}\n"
+
+	if [ "${branch}" != "master" ] && [ "${stayOnBranch}" == false ];
+		then
+			printf "Changing ${cyan}$2${reset} from ${green}$1${reset} branch to ${bold}${purple}master${reset}\n"
+			git checkout master
+			false
+		else
+			printf "${bold}Staying on the branch:${reset} $1\n"
+			true
+	fi
+}
+
+check_git() {
+	git remote update
+	localGit="$(git rev-parse @)"
+	remoteGit="$(git rev-parse origin/$1)"
+
+	printf "${purple}Local git commit:${reset} ${localGit}\n${purple}Remote git commit:${reset} ${remoteGit} - $1\n"
+
+	if [[ "${localGit}" != "${remoteGit}" ]];
+	then
+		true
+	else
+		false
+	fi
+}
+
+update_folder(){
+	check_git $1
+	gity="$?"
+	
+	if [[ "${gity}" == 0 ]] || [ "${forceUpdate}" == true ];
+		then
+			printf "Pulling down latest HEAD for ${cyan}${folder}${reset}\n"
+			git pull origin master
+		else
+			printf "${yellow}${folder} is up-to-date\n"
+	fi
+
+	run_gradle
+	run_maven
+}
+
+printf "${bold}Updating all the folders inside of ${cyan}${parent_dir}${reset}..." 
+
+for folder in "${FILES[@]}"
+do
+	printf "\n\n"
+	printf "${green}${folder}${reset}\n"
+	cd $folder
+
+	git stash
+
+	branch=$(git rev-parse --abbrev-ref HEAD)
+	
+	brancher $branch $folder
+	change="$?"
+
+	update_folder "${branch}"
+
+	if [ "${changeBack}" ];
+		then
+			printf "Returning ${cyan}${folder}${reset} to ${green}${branch}${reset} branch\n"
+			git checkout "${branch}"
+	fi
+
+	cd $parent_dir
+
+done;
+
+printf "\n${bold}${green}Completed updating all subfolders... get working!\n"

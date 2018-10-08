@@ -1,138 +1,97 @@
-#!/bin/bash
-FILES=($(ls -d */))
-parent_dir=$(pwd)
+#!/usr/bin/env python
+import subprocess
+import os
+import re
 
-#Terminal colours
-cyan="\\e[36m"
-green="\\e[92m"
-red="\\e[91m"
-purple="\\e[95m"
-yellow="\\e[33m"
-blue="\\e[34m"
+style={
+	'cyan'	 : '\033[36m',
+	'green'	 : '\033[92m',
+	'red' 	 : '\033[91m',
+	'purple' : '\033[95m',
+	'yellow' : '\033[33m',
+	'blue'	 : '\033[34m',
 
-bold="\\e[01m"
-ul="\\e[4m"
-blink="\\e[5m"
-invert="\\e[7m"
-reset="\\e[0m"
-
-#Flags
-gradle=false
-maven=false
-changeBack=true
-forceUpdate=false
-stayOnBranch=false
-
-#Array of projects to avoid with integration
-avoid=("avoid-this/")
-
-#Options passed to script
-while getopts 'gmcfs' flag; do
-  case "${flag}" in
-    g) gradle=true ;;
-    m) maven=true ;;
-	c) changeBack=false ;;
-	f) forceUpdate=true ;;
-	s) stayOnBranch=true ;;
-    *) error "Unexpected option ${flag}" ;;
-  esac
-done
-
-run_gradle() {
-	if "${gradle}" == true;
-		then
-		if [[ " ${avoid[@]} " =~ " ${folder} " ]];
-			then
-				printf "Applying ${green}Gradle${reset} clean build ${red}without unit test${reset} to ${cyan}${folder}${reset}\n"
-				./gradlew clean build -q -x test -x checkstyleMain -x checkstyleTest -x findbugsMain -x checkstyleTest
-			else
-				printf "Applying ${green}Gradle${reset} clean build ${red}without unit and ${bold}feature tests${reset} to ${cyan}${folder}${reset}\n"
-				./gradlew clean build -q -x test -x integration -x checkstyleMain -x checkstyleTest -x findbugsMain -x checkstyleTest
-		fi
-	fi
+	'bold' 	 : '\033[01m',
+	'ul'	 : '\033[04m',
+	'blink'	 : '\033[05m',
+	'invert' : '\033[07m',
+	'reset'	 : '\033[0m'
 }
 
-run_maven() {
-	if "${maven}" == true;
-		then
-		if [[ " ${avoid[@]} " =~ " ${i} " ]];
-			then
-				printf "${cyan}${folder}${red} does not contain a maven project.\n"
-			else
-				printf "Applying ${green}maven${reset} build to ${cyan}${folder}${reset}\n"
-				mvn -U clean install -DskipTests
-		fi
-	fi
-}
+line_length = int(os.popen('stty size', 'r').read().split()[1])
+line = ("-" * ((line_length/len("-"))+1))[:line_length]
 
-brancher() {
-	printf "${bold}${blue}Current branch: ${reset}${bold}$1${reset}\n"
 
-	if [ "${branch}" != "master" ] && [ "${stayOnBranch}" == false ];
-		then
-			printf "Changing ${cyan}$2${reset} from ${green}$1${reset} branch to ${bold}${purple}master${reset}\n"
-			git checkout master
-			false
-		else
-			printf "${bold}Staying on the branch:${reset} $1\n"
-			true
-	fi
-}
+class Repo:
+	build = { 
+			"sbt": 		"./sbt build",
+	 		"gradle": 	"./gradlew clean build",
+	 		"maven": 	"mvn clean build -DskipTests"
+ 		}
 
-check_git() {
-	git remote update
-	localGit="$(git rev-parse @)"
-	remoteGit="$(git rev-parse origin/$1)"
+	def __init__(self, path, rel_path):
+		self.path = path
+		self.rel_path = rel_path
+		self.build_command = self.__find_build_system()
 
-	printf "${purple}Local git commit:${reset} ${localGit}\n${purple}Remote git commit:${reset} ${remoteGit} - $1\n"
+	def update(self):
+		print(line)
 
-	if [[ "${localGit}" != "${remoteGit}" ]];
-	then
-		true
-	else
-		false
-	fi
-}
+		print("{yellow}Updating the repo: {path}{reset}".format(path=self.rel_path, **style))
+		has_git = os.path.isdir(self.path + "/.git")
 
-update_folder(){
-	check_git $1
-	gity="$?"
-	
-	if [[ "${gity}" == 0 ]] || [ "${forceUpdate}" == true ];
-		then
-			printf "Pulling down latest HEAD for ${cyan}${folder}${reset}\n"
-			git pull origin master
-		else
-			printf "${yellow}${folder} is up-to-date\n"
-	fi
+		if has_git:
+			os.chdir(self.path)
+			subprocess.Popen("git checkout master && git pull", stdout=subprocess.PIPE, shell=True).communicate()
+		else:
+			log.warn("{red}{path} is not a git project{reset}".format(red=self.rel_path, **style))
+			pass
 
-	run_gradle
-	run_maven
-}
+		if self.build_command is None:
+			print("{red}{path} does not contain a build system{reset}".format(path=self.rel_path, **style))
+			pass
+		else:
+			os.chdir(self.path)
+			print("Using {command} to update {cyan}{path}{reset}".format(command=self.build_command, path=self.rel_path, **style))
+			subprocess.Popen(self.build_command, stdout=subprocess.PIPE, shell=True).communicate()
+		print("\n{bold}{ul}Finished updating {path}{reset}".format(path=self.rel_path, **style))
+		print(line)
+		print("\n\n")
 
-printf "${bold}Updating all the folders inside of ${cyan}${parent_dir}${reset}..." 
 
-for folder in "${FILES[@]}"
-do
-	printf "\n\n"
-	printf "${green}${folder}${reset}\n"
-	cd $folder
+	def __find_build_system(self):
+		if os.path.exists(self.path + "/gradlew"):
+			return self.build.get("gradle")
+		elif os.path.exists(self.path + "/pom.xml"):
+			return self.build.get("maven")
+		elif os.path.exists(self.path + "/sbt"):
+			return self.build.get("sbt")
+		else: 
+			return None
 
-	branch=$(git rev-parse --abbrev-ref HEAD)
-	
-	brancher $branch $folder
-	change="$?"
+def main():
+	global current_dir
+	current_dir = os.getcwd()
 
-	update_folder "${branch}"
+	all_dirs = [name for name in os.listdir(current_dir) if os.path.isdir(os.path.join(current_dir, name))]
+	repos = list()
 
-	if [ "${changeBack}" ] && [ "${branch}" != "master" ] && [ "${stayOnBranch}" == false ];
-		then
-			printf "Returning ${cyan}${folder}${reset} to ${green}${branch}${reset} branch\n"
-			git checkout "${branch}"
-	fi
+	print("{bold}Updating all subdirectories under {cyan}{dir}{reset}".format(dir=current_dir, **style))
 
-	cd $parent_dir
+	print("List of folders that are being updated:\n")
+	for name in all_dirs:
+		if name.startswith("."):
+			pass
+		else:
+			repo = Repo(current_dir + "/" + name, name)
+			if repo.build_command is not None:
+				repos.append(repo)
+				print("\t{green}{bold}{name}{reset}".format(name=name, **style))
 
-done;
+	print("")
 
-printf "\n${bold}${green}Completed updating all subfolders... get working!\n"
+	for repo in repos:
+		repo.update()
+
+if __name__ == "__main__":
+    main()
