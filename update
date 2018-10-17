@@ -33,14 +33,14 @@ class Repo:
 		self.path = path
 		self.rel_path = rel_path
 		self.build_command = self.__find_build_system()
+		self.has_git = os.path.isdir(self.path + "/.git")
 
 	def update(self):
 		print(line)
 
 		print("{yellow}Updating the repo: {path}{reset}".format(path=self.rel_path, **style))
-		has_git = os.path.isdir(self.path + "/.git")
 
-		if has_git:
+		if self.has_git:
 			os.chdir(self.path)
 			subprocess.Popen("git checkout master && git pull", stdout=subprocess.PIPE, shell=True).communicate()
 		else:
@@ -84,7 +84,7 @@ def main():
 			pass
 		else:
 			repo = Repo(current_dir + "/" + name, name)
-			if repo.build_command is not None:
+			if repo.has_git:
 				repos.append(repo)
 				print("\t{green}{bold}{name}{reset}".format(name=name, **style))
 

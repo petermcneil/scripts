@@ -3,17 +3,25 @@ This is just a collection of useful scripts that I have built up over time (so f
 
 1. update
 2. proxy
+3. update_old
 
 It is recommended you add the project path to your `$PATH` env and to the `sudoers` file with `NOPASSWD` for ease of use.
 
-##  update
+## update
+**Language**: python
+**Tested on**: macOS, git, maven, gradle, sbt
+
+`update` updates git projects with build systems. It looks for known files for the build system (i.e. maven -> pom.xml), updates from the remote repo, and runs the build command.
+
+
+##  update_old
 
 **Language**: _bash_
 
 **Requirements**: macOS, git, maven _(Optional)_, gradle _(Optional)_
 
 
-*update* is a script that will pull down git changes from the remote and run either maven or gradle or none!
+*update_old* is a script that will pull down git changes from the remote and run either maven or gradle or none!
 
 It works by checking the latest commit on the up-stream branch that you are on and comparing it with your latest local commit. If they are different it will perform a git pull.
 
