@@ -5,7 +5,7 @@ This is just a collection of useful scripts that I have built up over time (so f
 2. proxy
 3. update_old
 
-It is recommended you add the project path to your `$PATH` env and to the `sudoers` file with `NOPASSWD` for ease of use.
+To install add the script to `/usr/local/bin/`.
 
 ## update
 **Language**: python
