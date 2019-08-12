@@ -4,26 +4,26 @@ import os
 import time
 from os.path import expanduser
 
-#Utility constant
+# Utility constant
 home = expanduser("~")
 
-#Proxy dependent constants
+# Proxy dependent constants
 proxy_name = "BBC {} Network"
-on  = "On"
+on = "On"
 off = "Off"
 reload_command = "source ~/.profile"
 
-#Dictionary of files to change
-files= {
-	'spotify' : '{}/Library/Application Support/Spotify/prefs'.format(home),
-	'maven' : '{}/.m2/settings.xml'.format(home),
-	'ssh' : '{}/.ssh/config'.format(home)	
+# Dictionary of files to change
+files = {
+    'spotify': '{}/Library/Application Support/Spotify/prefs'.format(home),
+    'maven': '{}/.m2/settings.xml'.format(home),
+    'ssh': '{}/.ssh/config'.format(home)
 }
 
-#List of programs to reload on proxy change
-processes=["Spotify"]
+# List of programs to reload on proxy change
+processes = ["Spotify"]
 
-#AppleScript to reload profile in iTerm2
+# AppleScript to reload profile in iTerm2
 reload_iterm2 = """tell application "iTerm"
     repeat with aWindow in windows
         tell aWindow
@@ -40,7 +40,7 @@ reload_iterm2 = """tell application "iTerm"
     end repeat
 end tell""".format(reload_command)
 
-#AppleScript to reload profile in the Mac Terminal
+# AppleScript to reload profile in the Mac Terminal
 reload_mac_term = """tell application "Terminal" 
 	local allWindows
 	set allWindows to id of every window
@@ -50,12 +50,12 @@ reload_mac_term = """tell application "Terminal"
 	end repeat
 end tell""".format(reload_command)
 
-#Dictionary of all terminals to reload on proxy change
-terminals=dict(iTerm2=reload_iterm2, Terminal=reload_mac_term)
+# Dictionary of all terminals to reload on proxy change
+terminals = dict(iTerm2=reload_iterm2, Terminal=reload_mac_term)
 
-#Terminal style
-style={
-	'cyan'	 : '\033[36m',
+# Terminal style
+style = {
+    'cyan'	: '\033[36m',
 	'green'	 : '\033[92m',
 	'red' 	 : '\033[91m',
 	'purple' : '\033[95m',
@@ -72,7 +72,7 @@ style={
 def get_location():
 	network_loc = "networksetup -getcurrentlocation"
 	loc = subprocess.Popen(network_loc, stdout=subprocess.PIPE, shell=True).communicate()[0].decode().strip()
-	
+
 	if on in loc:
 		loc_text = on
 	else:
@@ -105,13 +105,13 @@ def update_file(process):
 
 	print("{bold}Changing the proxy settings for {}{reset}".format(process.title(), **style))
 
-	#print("{green}Moving {} to {}".format(new_location, temp_location, **style))
+    # print("{green}Moving {} to {}".format(new_location, temp_location, **style))
 	os.rename(new_location, temp_location)
-	#print("Moving {} to {}".format(location, new_location, **style))
+    # print("Moving {} to {}".format(location, new_location, **style))
 	os.rename(location, new_location)
-	#print("Moving {} to {}{reset}".format(temp_location, location, **style))
+    # print("Moving {} to {}{reset}".format(temp_location, location, **style))
 	os.rename(temp_location, location)
-		
+
 
 
 def reload():
@@ -151,7 +151,7 @@ def find_pid(process):
 def main():
 	before_proxy = get_location()
 
-	global proxy 
+	global proxy
 	proxy = {}
 	proxy['before'] 	 = before_proxy[0]
 	proxy['before_text'] = before_proxy[1]

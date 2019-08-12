@@ -1,0 +1,4 @@
+#!/bin/bash
+
+cp ./proxy /usr/local/bin/proxy
+cp ./update /usr/local/bin/update

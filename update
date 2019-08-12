@@ -3,95 +3,96 @@ import subprocess
 import os
 import re
 
-style={
-	'cyan'	 : '\033[36m',
-	'green'	 : '\033[92m',
-	'red' 	 : '\033[91m',
-	'purple' : '\033[95m',
-	'yellow' : '\033[33m',
-	'blue'	 : '\033[34m',
+style = {
+    'cyan': '\033[36m',
+    'green': '\033[92m',
+    'red': '\033[91m',
+    'purpl': '\033[95m',
+    'yello': '\033[33m',
+    'blue': '\033[34m',
 
-	'bold' 	 : '\033[01m',
-	'ul'	 : '\033[04m',
+    'bold': '\033[01m',
+    'ul'	: '\033[04m',
 	'blink'	 : '\033[05m',
-	'invert' : '\033[07m',
+	'inve' : '\033[07m',
 	'reset'	 : '\033[0m'
 }
 
 line_length = int(os.popen('stty size', 'r').read().split()[1])
-line = ("-" * ((line_length/len("-"))+1))[:line_length]
+line = ("-" * ((line_length /len("-")) + 1))[:line_length]
 
 
 class Repo:
-	build = { 
-			"sbt": 		"./sbt build",
-	 		"gradle": 	"./gradlew clean build",
-	 		"maven": 	"mvn clean build -DskipTests"
- 		}
+    build = {
+        "sbt": "./sbt build",
+        "gradle": "./gradlew clean build",
+        "maven": "mvn clean build -DskipTests"
+    }
 
-	def __init__(self, path, rel_path):
-		self.path = path
-		self.rel_path = rel_path
-		self.build_command = self.__find_build_system()
-		self.has_git = os.path.isdir(self.path + "/.git")
+    def __init__(self, path, rel_path):
+        self.path = path
+        self.rel_path = rel_path
+        self.build_command = self.__find_build_system()
+        self.has_git = os.path.isdir(self.path + "/.git")
 
-	def update(self):
-		print(line)
+    def update(self):
+        print(line)
 
-		print("{yellow}Updating the repo: {path}{reset}".format(path=self.rel_path, **style))
+        print("{yellow}Updating the repo: {path}{reset}".format(path=self.rel_path, **style))
 
-		if self.has_git:
-			os.chdir(self.path)
-			subprocess.Popen("git checkout master && git pull", stdout=subprocess.PIPE, shell=True).communicate()
-		else:
-			log.warn("{red}{path} is not a git project{reset}".format(red=self.rel_path, **style))
-			pass
+        if self.has_git:
+            os.chdir(self.path)
+            subprocess.Popen("git checkout master && git pull", stdout=subprocess.PIPE, shell=True).communicate()
+        else:
+            log.warn("{red}{path} is not a git project{reset}".format(red=self.rel_path, **style))
+            pass
 
-		if self.build_command is None:
-			print("{red}{path} does not contain a build system{reset}".format(path=self.rel_path, **style))
-			pass
-		else:
-			os.chdir(self.path)
-			print("Using {command} to update {cyan}{path}{reset}".format(command=self.build_command, path=self.rel_path, **style))
-			subprocess.Popen(self.build_command, stdout=subprocess.PIPE, shell=True).communicate()
-		print("\n{bold}{ul}Finished updating {path}{reset}".format(path=self.rel_path, **style))
-		print(line)
-		print("\n\n")
+        if self.build_command is None:
+            print("{red}{path} does not contain a build system{reset}".format(path=self.rel_path, **style))
+            pass
+        else:
+            os.chdir(self.path)
+            print("Using {command} to update {cyan}{path}{reset}".format(command=self.build_command, path=self.rel_path, **style))
+            subprocess.Popen(self.build_command, stdout=subprocess.PIPE, shell=True).communicate()
+        print("\n{bold}{ul}Finished updating {path}{reset}".format(path=self.rel_path, **style))
+        print(line)
+        print("\n\n")
 
+    def __find_build_system(self):
+        if os.path.exists(self.path + "/gradlew"):
+            return self.build.get("gradle")
+        elif os.path.exists(self.path + "/pom.xml"):
+            return self.build.get("maven")
+        elif os.path.exists(self.path + "/sbt"):
+            return self.build.get("sbt")
+        else:
+            return None
 
-	def __find_build_system(self):
-		if os.path.exists(self.path + "/gradlew"):
-			return self.build.get("gradle")
-		elif os.path.exists(self.path + "/pom.xml"):
-			return self.build.get("maven")
-		elif os.path.exists(self.path + "/sbt"):
-			return self.build.get("sbt")
-		else: 
-			return None
 
 def main():
-	global current_dir
-	current_dir = os.getcwd()
+    global current_dir
+    current_dir = os.getcwd()
 
-	all_dirs = [name for name in os.listdir(current_dir) if os.path.isdir(os.path.join(current_dir, name))]
-	repos = list()
+    all_dirs = [name for name in os.listdir(current_dir) if os.path.isdir(os.path.join(current_dir, name))]
+    repos = list()
 
-	print("{bold}Updating all subdirectories under {cyan}{dir}{reset}".format(dir=current_dir, **style))
+    print("{bold}Updating all subdirectories under {cyan}{dir}{reset}".format(dir=current_dir, **style))
 
-	print("List of folders that are being updated:\n")
-	for name in all_dirs:
-		if name.startswith("."):
-			pass
-		else:
-			repo = Repo(current_dir + "/" + name, name)
-			if repo.has_git:
-				repos.append(repo)
-				print("\t{green}{bold}{name}{reset}".format(name=name, **style))
+    print("List of folders that are being updated:\n")
+    for name in all_dirs:
+        if name.startswith("."):
+            pass
+        else:
+            repo = Repo(current_dir + "/" + name, name)
+            if repo.has_git:
+                repos.append(repo)
+                print("\t{green}{bold}{name}{reset}".format(name=name, **style))
 
-	print("")
+    print("")
 
-	for repo in repos:
-		repo.update()
+    for repo in repos:
+        repo.update()
+
 
 if __name__ == "__main__":
     main()
